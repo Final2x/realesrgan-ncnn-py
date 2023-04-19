@@ -54,7 +54,7 @@ class Test_Realesrgan:
                 image = _realesrgan.process_pil(image)
                 image.save("output.png")
 
-            assert calculate_image_similarity() == True
+            assert calculate_image_similarity()
 
             with Image.open("output.png") as image:
                 assert image.width == out_w
@@ -72,7 +72,7 @@ class Test_Realesrgan:
             image = _realesrgan.process_cv2(image)
             cv2.imencode(".jpg", image)[1].tofile("output.png")
 
-            assert calculate_image_similarity() == True
+            assert calculate_image_similarity()
 
             image = cv2.imdecode(np.fromfile("output.png", dtype=np.uint8), cv2.IMREAD_COLOR)
             assert image.shape[1] == out_w
