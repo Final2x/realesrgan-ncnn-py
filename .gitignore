@@ -1,0 +1,14 @@
+.DS_Store
+**/.DS_Store
+.DS_Store?
+
+/.idea
+
+/src/cmake-build-debug
+
+/src/build
+
+/README.md
+
+/version.txt
+

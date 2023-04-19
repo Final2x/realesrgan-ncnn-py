@@ -1,0 +1,345 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_14.2.app/Contents/Developer
+
+jobs:
+
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      DATE: ${{ steps.get_date.outputs.DATE }}
+    steps:
+      - name: Get current date
+        id: get_date
+        run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+  openmp-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '14.2.0'
+      - name: cache-openmp
+        id: cache-openmp
+        uses: actions/cache@v3.2.4
+        with:
+          path: openmp-install
+          key: openmp-macos-release-11.0.0
+      - name: checkout
+        if: steps.cache-openmp.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+      - name: openmp
+        if: steps.cache-openmp.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0/openmp-11.0.0.src.tar.xz
+          tar -xf openmp-11.0.0.src.tar.xz
+          cd openmp-11.0.0.src
+          sed -i'' -e '/.size __kmp_unnamed_critical_addr/d' runtime/src/z_Linux_asm.S
+          sed -i'' -e 's/__kmp_unnamed_critical_addr/___kmp_unnamed_critical_addr/g' runtime/src/z_Linux_asm.S
+      - name: build-x86_64
+        if: steps.cache-openmp.outputs.cache-hit != 'true'
+        run: |
+          cd openmp-11.0.0.src
+          mkdir build-x86_64 && cd build-x86_64
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install -DCMAKE_OSX_ARCHITECTURES="x86_64" \
+              -DLIBOMP_ENABLE_SHARED=OFF -DLIBOMP_OMPT_SUPPORT=OFF -DLIBOMP_USE_HWLOC=OFF ..
+          cmake --build . -j 2
+          cmake --build . --target install
+      - name: build-arm64
+        if: steps.cache-openmp.outputs.cache-hit != 'true'
+        run: |
+          cd openmp-11.0.0.src
+          mkdir build-arm64 && cd build-arm64
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=install -DCMAKE_OSX_ARCHITECTURES="arm64" \
+              -DLIBOMP_ENABLE_SHARED=OFF -DLIBOMP_OMPT_SUPPORT=OFF -DLIBOMP_USE_HWLOC=OFF ..
+          cmake --build . -j 2
+          cmake --build . --target install
+      - name: merge-fat-library
+        if: steps.cache-openmp.outputs.cache-hit != 'true'
+        run: |
+          rm -rf $GITHUB_WORKSPACE/openmp-install
+          mkdir -p $GITHUB_WORKSPACE/openmp-install
+          cp -r openmp-11.0.0.src/build-x86_64/install/include $GITHUB_WORKSPACE/openmp-install
+          mkdir -p $GITHUB_WORKSPACE/openmp-install/lib
+          lipo -create openmp-11.0.0.src/build-x86_64/install/lib/libomp.a openmp-11.0.0.src/build-arm64/install/lib/libomp.a -o $GITHUB_WORKSPACE/openmp-install/lib/libomp.a
+      - name: upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: openmp-macos
+          path: openmp-install
+
+  macos:
+    needs: [openmp-macos]
+
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '14.2.0'
+
+      - name: download-openmp-macos
+        uses: actions/download-artifact@v3
+        with:
+          name: openmp-macos
+          path: openmp-macos
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Check Python version
+        run: |
+          python --version
+
+
+      - name: install-openmp
+        run: |
+          sudo cp openmp-macos/include/* $DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include
+          sudo cp openmp-macos/lib/libomp.a $DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib
+
+      - name: cache-vulkansdk
+        id: cache-vulkansdk
+        uses: actions/cache@v3.2.4
+        with:
+          path: "src/vulkansdk-macos-1.2.162.1"
+          key: vulkansdk-macos-1.2.162.1
+
+      - name: vulkansdk
+        if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
+        run: |
+          cd src
+          wget https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/vulkansdk-macos-1.2.162.1.dmg -O vulkansdk-macos-1.2.162.1.dmg
+          hdiutil attach vulkansdk-macos-1.2.162.1.dmg
+          cp -r /Volumes/vulkansdk-macos-1.2.162.1 .
+          rm -rf vulkansdk-macos-1.2.162.1/Applications
+          find vulkansdk-macos-1.2.162.1 -type f | grep -v -E 'vulkan|glslang|MoltenVK' | xargs rm
+          hdiutil detach /Volumes/vulkansdk-macos-1.2.162.1
+
+      - name: build-arm64
+        run: |
+          cd src
+          export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.162.1/macOS
+          mkdir build-arm64 && cd build-arm64
+          cmake -DUSE_STATIC_MOLTENVK=ON -DCMAKE_OSX_ARCHITECTURES="arm64" \
+              -DCMAKE_CROSSCOMPILING=ON -DCMAKE_SYSTEM_PROCESSOR=arm64 \
+              -DOpenMP_C_FLAGS="-Xclang -fopenmp" -DOpenMP_CXX_FLAGS="-Xclang -fopenmp -fexceptions -frtti" \
+              -DOpenMP_C_LIB_NAMES="libomp" -DOpenMP_CXX_LIB_NAMES="libomp" \
+              -DOpenMP_libomp_LIBRARY="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libomp.a" \
+              -DVulkan_INCLUDE_DIR=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/include \
+              -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a \
+              ..
+          cmake --build . -j 4
+
+
+      - name: build-x86_64
+        run: |
+          cd src
+          export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.162.1/macOS
+          mkdir build-x86_64 && cd build-x86_64
+          cmake -DUSE_STATIC_MOLTENVK=ON -DCMAKE_OSX_ARCHITECTURES="x86_64" \
+              -DCMAKE_CROSSCOMPILING=ON -DCMAKE_SYSTEM_PROCESSOR=x86_64 \
+              -DOpenMP_C_FLAGS="-Xclang -fopenmp" -DOpenMP_CXX_FLAGS="-Xclang -fopenmp -fexceptions -frtti" \
+              -DOpenMP_C_LIB_NAMES="libomp" -DOpenMP_CXX_LIB_NAMES="libomp" \
+              -DOpenMP_libomp_LIBRARY="$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/libomp.a" \
+              -DVulkan_INCLUDE_DIR=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/include \
+              -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a \
+              ..
+          cmake --build . -j 4
+
+
+      - name: merge-fat-library-py36m
+        if: matrix.python-version == '3.6'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-36m-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-36m-darwin.so -o realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-36m-darwin.so
+      - name: merge-fat-library-py37m
+        if: matrix.python-version == '3.7'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-37m-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-37m-darwin.so -o realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-37m-darwin.so
+      - name: merge-fat-library-py38
+        if: matrix.python-version == '3.8'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so -o realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so
+      - name: merge-fat-library-py39
+        if: matrix.python-version == '3.9'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so -o realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so
+      - name: merge-fat-library-py310
+        if: matrix.python-version == '3.10'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so -o realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so
+      - name: merge-fat-library-py311
+        if: matrix.python-version == '3.11'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so -o realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so
+
+      - name: build wheel
+        run: |
+          pip install --upgrade pip chardet
+          pip install pathlib Pillow opencv-python==4.6.0.66 twine wheel setuptools
+          cp src/realesrgan_ncnn_vulkan.py realesrgan_ncnn_py
+          cp -r models realesrgan_ncnn_py
+          python setup.py bdist_wheel
+
+      - name: upload
+        uses: actions/upload-artifact@v3
+        with:
+          path: dist
+
+
+  windows:
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Check Python version
+        run: |
+          python --version
+
+      - name: cache-vulkansdk
+        id: cache-vulkansdk
+        uses: actions/cache@v3
+        with:
+          path: "VulkanSDK"
+          key: VulkanSDK-1.2.162.1-Installer
+
+      - name: vulkansdk
+        if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/VulkanSDK-1.2.162.1-Installer.exe -OutFile VulkanSDK-1.2.162.1-Installer.exe
+          7z x -aoa ./VulkanSDK-1.2.162.1-Installer.exe -oVulkanSDK
+          Remove-Item .\VulkanSDK\Demos, .\VulkanSDK\Samples, .\VulkanSDK\Third-Party, .\VulkanSDK\Tools, .\VulkanSDK\Tools32, .\VulkanSDK\Bin32, .\VulkanSDK\Lib32 -Recurse          
+
+      - name: Build
+        run: |
+          $env:VULKAN_SDK="$(pwd)\VulkanSDK"
+          $env:CMAKE_FLAGS="-DPY_VERSION=${{ matrix.python-version }}"
+          cd src
+          mkdir build && cd build
+          cmake -A x64 -DCMAKE_CXX_FLAGS="-frtti -fexceptions" ..
+          cmake --build . --config Release -j 4 
+
+      - name: build wheel
+        run: |
+          pip install --upgrade pip chardet
+          pip install pathlib Pillow opencv-python==4.6.0.66 twine wheel setuptools
+          cd realesrgan_ncnn_py
+          mkdir models
+          cd ..
+          echo F | xcopy .\src\realesrgan_ncnn_vulkan.py realesrgan_ncnn_py
+          echo F | xcopy .\src\build\Release\realesrgan_ncnn_vulkan_wrapper.*.pyd realesrgan_ncnn_py
+          echo D | xcopy .\models\*.* realesrgan_ncnn_py\models /s /e
+          python setup.py bdist_wheel
+
+      - name: upload
+        uses: actions/upload-artifact@v3
+        with:
+           path: dist
+
+  linux:
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Check Python version
+        run: |
+          python --version
+
+      - name: cache-vulkansdk
+        id: cache-vulkansdk
+        uses: actions/cache@v3.2.4
+        with:
+          path: "1.2.162.1"
+          key: vulkansdk-linux-x86_64-1.2.162.1
+
+      - name: vulkansdk
+        if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
+        run: |
+          wget https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/vulkansdk-linux-x86_64-1.2.162.1.tar.gz -O vulkansdk-linux-x86_64-1.2.162.1.tar.gz
+          tar -xf vulkansdk-linux-x86_64-1.2.162.1.tar.gz
+          rm -rf 1.2.162.1/source 1.2.162.1/samples
+          find 1.2.162.1 -type f | grep -v -E 'vulkan|glslang' | xargs rm          
+
+      - name: build
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          export VULKAN_SDK=`pwd`/1.2.162.1/x86_64
+          cd src
+          mkdir build && cd build
+          cmake -DOpenMP_CXX_FLAGS="-fexceptions -frtti" ..
+          cmake --build . -j 4
+
+      - name: build wheel
+        run: |
+          pip install --upgrade pip chardet
+          pip install pathlib Pillow opencv-python==4.6.0.66 twine wheel setuptools
+          cp src/realesrgan_ncnn_vulkan.py realesrgan_ncnn_py
+          cp src/build/realesrgan_ncnn_vulkan_wrapper.*.so realesrgan_ncnn_py
+          cp -r models realesrgan_ncnn_py
+          python setup.py bdist_wheel
+
+      - name: upload
+        uses: actions/upload-artifact@v3
+        with:
+           path: dist
+
+
+  Release:
+    needs: [setup, macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          path: asset
+
+      - name: dist
+        run: |
+          mkdir dist
+          cp asset/artifact/* dist
+          cd dist && ls
+
+      - name: Publish a Python distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API }}
+
+      - name: Create Release and Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ needs.setup.outputs.DATE }}
+          tag_name: ${{ needs.setup.outputs.DATE }}
+          body: Auto Release.
+          draft: false
+          prerelease: false
+          files: dist/*
+

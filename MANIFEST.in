@@ -1,0 +1,2 @@
+recursive-include realesrgan_ncnn_py/models *
+recursive-include realesrgan_ncnn_py realesrgan_ncnn_vulkan_wrapper.*.*

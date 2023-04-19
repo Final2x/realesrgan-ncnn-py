@@ -1,0 +1,77 @@
+name: CI-Windows-x64-MSVC
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+      - LICENSE
+      - version.txt
+  pull_request: 
+    paths-ignore:
+      - README.md
+      - LICENSE
+      - version.txt
+  workflow_dispatch: 
+    
+jobs:
+
+  windows:
+    strategy:
+      matrix:
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          
+      - uses: actions/setup-python@v4 
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+          
+      - name: Check Python version
+        run: |
+          python --version
+          
+      - name: cache-vulkansdk
+        id: cache-vulkansdk
+        uses: actions/cache@v3
+        with:
+          path: "VulkanSDK"
+          key: VulkanSDK-1.2.162.1-Installer
+          
+      - name: vulkansdk
+        if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/VulkanSDK-1.2.162.1-Installer.exe -OutFile VulkanSDK-1.2.162.1-Installer.exe
+          7z x -aoa ./VulkanSDK-1.2.162.1-Installer.exe -oVulkanSDK
+          Remove-Item .\VulkanSDK\Demos, .\VulkanSDK\Samples, .\VulkanSDK\Third-Party, .\VulkanSDK\Tools, .\VulkanSDK\Tools32, .\VulkanSDK\Bin32, .\VulkanSDK\Lib32 -Recurse          
+          
+      - name: Build
+        run: |
+          $env:VULKAN_SDK="$(pwd)\VulkanSDK"
+          $env:CMAKE_FLAGS="-DPY_VERSION=${{ matrix.python-version }}"
+          cd src
+          mkdir build && cd build
+          cmake -A x64 -DCMAKE_CXX_FLAGS="-frtti -fexceptions" ..
+          cmake --build . --config Release -j 4 
+           
+      - name: dist
+        run: |
+          mkdir dist
+          cd dist
+          mkdir models
+          cd ..
+          echo F | xcopy .\src\realesrgan_ncnn_vulkan.py dist
+          echo F | xcopy .\src\build\Release\realesrgan_ncnn_vulkan_wrapper.*.pyd dist
+          echo D | xcopy .\models\*.* dist\models /s /e
+                
+      - name: upload
+        uses: actions/upload-artifact@v3
+        with:
+           name: realesrgan-ncnn-windows-python${{ matrix.python-version }}
+           path: dist
