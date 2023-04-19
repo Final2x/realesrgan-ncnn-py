@@ -182,7 +182,8 @@ jobs:
       - name: build wheel
         run: |
           pip install --upgrade pip chardet
-          pip install pathlib Pillow opencv-python==4.6.0.66 twine wheel setuptools
+          pip install -r requirements.txt
+          pip install twine wheel setuptools
           cp src/realesrgan_ncnn_vulkan.py realesrgan_ncnn_py
           cp -r models realesrgan_ncnn_py
           python setup.py bdist_wheel
@@ -239,7 +240,8 @@ jobs:
       - name: build wheel
         run: |
           pip install --upgrade pip chardet
-          pip install pathlib Pillow opencv-python==4.6.0.66 twine wheel setuptools
+          pip install -r requirements.txt
+          pip install twine wheel setuptools
           cd realesrgan_ncnn_py
           mkdir models
           cd ..
@@ -302,7 +304,8 @@ jobs:
       - name: build wheel
         run: |
           pip install --upgrade pip chardet
-          pip install pathlib Pillow opencv-python==4.6.0.66 twine wheel setuptools
+          pip install -r requirements.txt
+          pip install twine wheel setuptools
           cp src/realesrgan_ncnn_vulkan.py realesrgan_ncnn_py
           cp src/build/realesrgan_ncnn_vulkan_wrapper.*.so realesrgan_ncnn_py
           cp -r models realesrgan_ncnn_py

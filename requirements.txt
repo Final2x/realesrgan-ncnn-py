@@ -1,0 +1,7 @@
+pathlib
+opencv-python~=4.6.0.66
+scikit-image
+Pillow
+pytest
+pytest-cov
+realesrgan-ncnn-py
