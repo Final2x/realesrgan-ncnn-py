@@ -3,6 +3,7 @@ Python Binding for realesrgan-ncnn-py with PyBind11 [![PyPI version](https://bad
 
 Real-ESRGAN aims at developing Practical Algorithms for General Image/Video Restoration.
 We extend the powerful ESRGAN to a practical restoration application (namely, Real-ESRGAN), which is trained with pure synthetic data.
+This wrapper provides an easy-to-use interface for running the pre-trained Real-ESRGAN model.
 
 ### Current building status matrix
 | System        | Status                                                                                                                                                                                                                              | CPU (32bit)  |  CPU (64bit) | GPU (32bit)  | GPU (64bit)        |
