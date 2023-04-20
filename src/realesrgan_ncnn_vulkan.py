@@ -37,9 +37,9 @@ else:
 
 class Realesrgan:
     """
-    :param gpuid int: gpu device to use
-    :param tta_mode bool: enable test time argumentation
-    :param tilesize int: tile size
+    :param gpuid: gpu device to use, cpu is not supported yet
+    :param tta_mode: enable test time argumentation
+    :param tilesize: tile size, 0 for auto, must >= 32
     :param model: realesrgan model, 0 for default, -1 for custom load
     """
 
