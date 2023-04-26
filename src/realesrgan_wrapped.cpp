@@ -84,8 +84,8 @@ PYBIND11_MODULE(realesrgan_ncnn_vulkan_wrapper, m) {
 
     pybind11::class_<RealESRGANImage>(m, "RealESRGANImage")
             .def(pybind11::init<std::string, int, int, int>())
-            .def("get_data", &Image::get_data)
-            .def("set_data", &Image::set_data);
+            .def("get_data", &RealESRGANImage::get_data)
+            .def("set_data", &RealESRGANImage::set_data);
 
     m.def("get_gpu_count", &get_gpu_count);
 
