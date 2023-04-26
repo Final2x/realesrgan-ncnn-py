@@ -1,18 +1,18 @@
 #include "realesrgan_wrapped.h"
 
 // Image Data Structure
-Image::Image(std::string d, int w, int h, int c) {
+RealESRGANImage::RealESRGANImage(std::string d, int w, int h, int c) {
     this->d = std::move(d);
     this->w = w;
     this->h = h;
     this->c = c;
 }
 
-void Image::set_data(std::string data) {
+void RealESRGANImage::set_data(std::string data) {
     this->d = std::move(data);
 }
 
-pybind11::bytes Image::get_data() const {
+pybind11::bytes RealESRGANImage::get_data() const {
     return pybind11::bytes(this->d);
 }
 
@@ -62,7 +62,7 @@ int RealESRGANWrapped::load(const std::string &parampath, const std::string &mod
 #endif
 }
 
-int RealESRGANWrapped::process(const Image &inimage, Image &outimage) const {
+int RealESRGANWrapped::process(const RealESRGANImage &inimage, RealESRGANImage &outimage) const {
     int c = inimage.c;
     ncnn::Mat inimagemat =
             ncnn::Mat(inimage.w, inimage.h, (void *) inimage.d.data(), (size_t) c, c);
@@ -82,7 +82,7 @@ PYBIND11_MODULE(realesrgan_ncnn_vulkan_wrapper, m) {
             .def("process", &RealESRGANWrapped::process)
             .def("set_parameters", &RealESRGANWrapped::set_parameters);
 
-    pybind11::class_<Image>(m, "Image")
+    pybind11::class_<RealESRGANImage>(m, "RealESRGANImage")
             .def(pybind11::init<std::string, int, int, int>())
             .def("get_data", &Image::get_data)
             .def("set_data", &Image::set_data);
