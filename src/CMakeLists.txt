@@ -74,9 +74,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Real-ESRGAN-ncnn-vulkan/src)
 include_directories(.)
 
 if(OPENMP_FOUND)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+  message(STATUS "use openmp")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS
+      "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+else()
+  message(STATUS "not use openmp")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -frtti")
 endif()
 
 # enable global link time optimization
@@ -146,8 +151,8 @@ if(NOT USE_SYSTEM_NCNN)
   option(NCNN_BUILD_TESTS "" OFF)
   option(NCNN_BUILD_TOOLS "" OFF)
   option(NCNN_BUILD_EXAMPLES "" OFF)
-  option(NCNN_DISABLE_RTTI "" ON)
-  option(NCNN_DISABLE_EXCEPTION "" ON)
+  option(NCNN_DISABLE_RTTI "" OFF)
+  option(NCNN_DISABLE_EXCEPTION "" OFF)
 
   option(WITH_LAYER_absval "" OFF)
   option(WITH_LAYER_argmax "" OFF)
