@@ -7,13 +7,11 @@ on:
     paths-ignore:
       - README.md
       - LICENSE
-      - version.txt
-  pull_request: 
+  pull_request:
     paths-ignore:
       - README.md
       - LICENSE
-      - version.txt
-  workflow_dispatch: 
+  workflow_dispatch:
     
 jobs:
 
