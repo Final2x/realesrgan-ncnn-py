@@ -1,5 +1,7 @@
 # realesrgan-ncnn-py
-Python Binding for realesrgan-ncnn-py with PyBind11 [![PyPI version](https://badge.fury.io/py/realesrgan-ncnn-py.svg?123456)](https://badge.fury.io/py/realesrgan-ncnn-py?123456)  [![Release](https://github.com/Tohrusky/realesrgan-ncnn-py/actions/workflows/Release.yml/badge.svg)](https://github.com/Tohrusky/realesrgan-ncnn-py/actions/workflows/Release.yml)
+Python Binding for realesrgan-ncnn-py with PyBind11 
+
+[![PyPI version](https://badge.fury.io/py/realesrgan-ncnn-py.svg?123456)](https://badge.fury.io/py/realesrgan-ncnn-py?123456)  [![Release](https://github.com/Tohrusky/realesrgan-ncnn-py/actions/workflows/Release.yml/badge.svg)](https://github.com/Tohrusky/realesrgan-ncnn-py/actions/workflows/Release.yml)
 
 Real-ESRGAN aims at developing Practical Algorithms for General Image/Video Restoration.
 We extend the powerful ESRGAN to a practical restoration application (namely, Real-ESRGAN), which is trained with pure synthetic data.
