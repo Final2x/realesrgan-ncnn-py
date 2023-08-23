@@ -4,7 +4,7 @@ from setuptools import setup
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 import sys
 
-_version = '1.3.0'
+_version = '1.3.1'
 
 
 class bdist_wheel(_bdist_wheel):
@@ -27,7 +27,7 @@ elif sys.platform == "linux":
     
 
 setup(
-    name='realesrgan_ncnn_py',
+    name='realesrgan-ncnn-py',
     version=_version,
     description='',
     long_description=open('README.md', encoding='utf-8').read(),
