@@ -61,7 +61,7 @@ class Realesrgan:
         self._scale = 2
 
         if self._model > -1:
-            self.load()
+            self._load()
 
         self.raw_in_image = None
         self.raw_out_image = None
@@ -74,7 +74,7 @@ class Realesrgan:
         """
         self._realesrgan_object.set_parameters(self._tilesize, self._scale)
 
-    def load(
+    def _load(
         self, param_path: Optional[pathlib.Path] = None, model_path: Optional[pathlib.Path] = None, scale: int = 0
     ) -> None:
         """
