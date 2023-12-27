@@ -45,7 +45,7 @@ from realesrgan_ncnn_py import Realesrgan
 To initialize the model:
 
 ```python
-realesrgan = Realesrgan(gpuid: int = 0, tta_mode: bool = False, tilesize: int = 0, model: int = 0, **_kwargs)
+realesrgan = Realesrgan(gpuid: int = 0, tta_mode: bool = False, tilesize: int = 0, model: int = 0)
 # model can be -1, 0, 1, 2, 3, 4; 0 for default, -1 for custom load
 # 0: {"param": "realesr-animevideov3-x2.param", "bin": "realesr-animevideov3-x2.bin", "scale": 2},
 # 1: {"param": "realesr-animevideov3-x3.param", "bin": "realesr-animevideov3-x3.bin", "scale": 3},
