@@ -21,36 +21,32 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-# 参考https://github.com/media2x/realsr-ncnn-vulkan-python，感谢原作者
+# 参考https://github.com/media2x/realsr-ncnn-vulkan-python, 感谢原作者
 
 import pathlib
-import time
-from PIL import Image
-import numpy as np
-import cv2
+from typing import Dict, Optional, Union
 
-if __package__ or "." in __name__:
+import cv2
+import numpy as np
+from PIL import Image
+
+try:
     from . import realesrgan_ncnn_vulkan_wrapper as wrapped
-else:
+except ImportError:
     import realesrgan_ncnn_vulkan_wrapper as wrapped
 
 
 class Realesrgan:
-    """
-    :param gpuid: gpu device to use, cpu is not supported yet
-    :param tta_mode: enable test time argumentation
-    :param tilesize: tile size, 0 for auto, must >= 32
-    :param model: realesrgan model, 0 for default, -1 for custom load
-    """
+    def __init__(self, gpuid: int = 0, tta_mode: bool = False, tilesize: int = 0, model: int = 0):
+        """
+        RealESRGAN class for Super Resolution
 
-    def __init__(
-            self,
-            gpuid: int = 0,
-            tta_mode: bool = False,
-            tilesize: int = 0,
-            model: int = 0,
-            **_kwargs,
-    ):
+        :param gpuid: gpu device to use, cpu is not supported yet
+        :param tta_mode: enable test time argumentation
+        :param tilesize: tile size, 0 for auto, must >= 32
+        :param model: realesrgan model, 0 for default, -1 for custom load
+        """
+
         # check arguments' validity
         assert gpuid >= 0, "gpuid must >= 0"
         assert tilesize == 0 or tilesize >= 32, "tilesize must >= 32 or be 0"
@@ -65,7 +61,7 @@ class Realesrgan:
         self._scale = 2
 
         if self._model > -1:
-            self.load()
+            self._load()
 
         self.raw_in_image = None
         self.raw_out_image = None
@@ -78,18 +74,26 @@ class Realesrgan:
         """
         self._realesrgan_object.set_parameters(self._tilesize, self._scale)
 
-    def load(
-            self, param_path: pathlib.Path = None, model_path: pathlib.Path = None, scale: int = 0) -> None:
+    def _load(
+        self, param_path: Optional[pathlib.Path] = None, model_path: Optional[pathlib.Path] = None, scale: int = 0
+    ) -> None:
         """
-            Load models from given paths when self._model == -1
+        Load models from given paths when self._model == -1
 
-            :param param_path: the path to model params. usually ended with ".param"
-            :param model_path: the path to model bin. usually ended with ".bin"
-            :param scale: the scale of the model. 1, 2, 3, 4...
-            :return: None
-            """
+        :param param_path: the path to model params. usually ended with ".param"
+        :param model_path: the path to model bin. usually ended with ".bin"
+        :param scale: the scale of the model. 1, 2, 3, 4...
+        :return: None
+        """
 
-        model_dict = {}
+        model_dict: Dict[int, Dict[str, Union[str, int]]] = {
+            0: {"param": "realesr-animevideov3-x2.param", "bin": "realesr-animevideov3-x2.bin", "scale": 2},
+            1: {"param": "realesr-animevideov3-x3.param", "bin": "realesr-animevideov3-x3.bin", "scale": 3},
+            2: {"param": "realesr-animevideov3-x4.param", "bin": "realesr-animevideov3-x4.bin", "scale": 4},
+            3: {"param": "realesrgan-x4plus-anime.param", "bin": "realesrgan-x4plus-anime.bin", "scale": 4},
+            4: {"param": "realesrgan-x4plus.param", "bin": "realesrgan-x4plus.bin", "scale": 4},
+        }
+
         if self._model == -1:
             if param_path is None and model_path is None and scale == 0:
                 raise ValueError("param_path, model_path and scale must be specified when model == -1")
@@ -100,23 +104,16 @@ class Realesrgan:
         else:
             model_dir = pathlib.Path(__file__).parent / "models"
 
-            model_dict = {
-                0: {"param": "realesr-animevideov3-x2.param", "bin": "realesr-animevideov3-x2.bin", "scale": 2},
-                1: {"param": "realesr-animevideov3-x3.param", "bin": "realesr-animevideov3-x3.bin", "scale": 3},
-                2: {"param": "realesr-animevideov3-x4.param", "bin": "realesr-animevideov3-x4.bin", "scale": 4},
-                3: {"param": "realesrgan-x4plus-anime.param", "bin": "realesrgan-x4plus-anime.bin", "scale": 4},
-                4: {"param": "realesrgan-x4plus.param", "bin": "realesrgan-x4plus.bin", "scale": 4}
-            }
+            param_path = model_dir / pathlib.Path(str(model_dict[self._model]["param"]))
+            model_path = model_dir / pathlib.Path(str(model_dict[self._model]["bin"]))
 
-            param_path = model_dir / model_dict[self._model]["param"]
-            model_path = model_dir / model_dict[self._model]["bin"]
-
-        self._scale = scale if scale == -1 else model_dict[self._model]["scale"]
+        self._scale = scale if scale != 0 else int(model_dict[self._model]["scale"])
         self._set_parameters()
 
-        param_path = str(param_path)
-        model_path = str(model_path)
-        self._realesrgan_object.load(param_path, model_path)
+        if param_path is None or model_path is None:
+            raise ValueError("param_path and model_path is None")
+
+        self._realesrgan_object.load(str(param_path), str(model_path))
 
     def process(self) -> None:
         self._realesrgan_object.process(self.raw_in_image, self.raw_out_image)
@@ -131,14 +128,9 @@ class Realesrgan:
 
         in_bytes = _image.tobytes()
         channels = int(len(in_bytes) / (_image.width * _image.height))
-        out_bytes = (self._scale ** 2) * len(in_bytes) * b"\x00"
+        out_bytes = (self._scale**2) * len(in_bytes) * b"\x00"
 
-        self.raw_in_image = wrapped.RealESRGANImage(
-            in_bytes,
-            _image.width,
-            _image.height,
-            channels
-        )
+        self.raw_in_image = wrapped.RealESRGANImage(in_bytes, _image.width, _image.height, channels)
 
         self.raw_out_image = wrapped.RealESRGANImage(
             out_bytes,
@@ -169,14 +161,9 @@ class Realesrgan:
 
         in_bytes = _image.tobytes()
         channels = int(len(in_bytes) / (_image.shape[1] * _image.shape[0]))
-        out_bytes = (self._scale ** 2) * len(in_bytes) * b"\x00"
+        out_bytes = (self._scale**2) * len(in_bytes) * b"\x00"
 
-        self.raw_in_image = wrapped.RealESRGANImage(
-            in_bytes,
-            _image.shape[1],
-            _image.shape[0],
-            channels
-        )
+        self.raw_in_image = wrapped.RealESRGANImage(in_bytes, _image.shape[1], _image.shape[0], channels)
 
         self.raw_out_image = wrapped.RealESRGANImage(
             out_bytes,
@@ -187,13 +174,8 @@ class Realesrgan:
 
         self.process()
 
-        res = np.frombuffer(
-            self.raw_out_image.get_data(),
-            dtype=np.uint8
-        ).reshape(
-            self._scale * _image.shape[0],
-            self._scale * _image.shape[1],
-            channels
+        res = np.frombuffer(self.raw_out_image.get_data(), dtype=np.uint8).reshape(
+            self._scale * _image.shape[0], self._scale * _image.shape[1], channels
         )
 
         return cv2.cvtColor(res, cv2.COLOR_RGB2BGR)
@@ -209,15 +191,10 @@ class Realesrgan:
         :return: processed bytes image
         """
         if self.raw_in_image is None and self.raw_out_image is None:
-            self.raw_in_image = wrapped.RealESRGANImage(
-                _image_bytes,
-                width,
-                height,
-                channels
-            )
+            self.raw_in_image = wrapped.RealESRGANImage(_image_bytes, width, height, channels)
 
             self.raw_out_image = wrapped.RealESRGANImage(
-                (self._scale ** 2) * len(_image_bytes) * b"\x00",
+                (self._scale**2) * len(_image_bytes) * b"\x00",
                 self._scale * width,
                 self._scale * height,
                 channels,
@@ -228,25 +205,3 @@ class Realesrgan:
         self.process()
 
         return self.raw_out_image.get_data()
-
-
-if __name__ == "__main__":
-    realesrgan = Realesrgan(gpuid=0)
-
-    time_start = time.time()
-
-    with Image.open("input.jpg") as image:
-        image = realesrgan.process_pil(image)
-        image.save("output.jpg", quality=95)
-
-    print(f"Time: {(time.time() - time_start) * 1000} ms")
-
-    # test cv2
-
-    time_start = time.time()
-
-    image = cv2.imdecode(np.fromfile("input.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
-    image = realesrgan.process_cv2(image)
-    cv2.imencode(".jpg", image)[1].tofile("output_cv2.jpg")
-
-    print(f"Time: {(time.time() - time_start) * 1000} ms")
