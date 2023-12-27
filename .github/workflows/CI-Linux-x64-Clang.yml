@@ -12,44 +12,49 @@ on:
       - README.md
       - LICENSE
   workflow_dispatch:
-    
-jobs:
 
+jobs:
   Linux-x64-Clang:
     strategy:
       matrix:
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
 
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-          
-      - uses: actions/setup-python@v4 
+
+      - uses: pdm-project/setup-pdm@v3
+        name: Setup PDM
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
-          
+          version: 2.11.1
+          prerelease: false
+          enable-pep582: false
+          allow-python-prereleases: false
+          update-python: true
+
       - name: Check Python version
         run: |
           python --version
-          
+
       - name: cache-vulkansdk
         id: cache-vulkansdk
         uses: actions/cache@v3.2.4
         with:
           path: "1.2.162.1"
           key: vulkansdk-linux-x86_64-1.2.162.1
-          
+
       - name: vulkansdk
         if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
         run: |
           wget https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/vulkansdk-linux-x86_64-1.2.162.1.tar.gz -O vulkansdk-linux-x86_64-1.2.162.1.tar.gz
           tar -xf vulkansdk-linux-x86_64-1.2.162.1.tar.gz
           rm -rf 1.2.162.1/source 1.2.162.1/samples
-          find 1.2.162.1 -type f | grep -v -E 'vulkan|glslang' | xargs rm          
-          
+          find 1.2.162.1 -type f | grep -v -E 'vulkan|glslang' | xargs rm
+
       - name: build
         env:
           CC: clang
@@ -63,13 +68,12 @@ jobs:
 
       - name: dist
         run: |
+          cp src/build/realesrgan_ncnn_vulkan_wrapper.*.so src/realesrgan_ncnn_py
           mkdir dist
-          cp src/build/realesrgan_ncnn_vulkan_wrapper.*.so dist
-          cp src/realesrgan_ncnn_vulkan.py dist
-          cp -r models dist
-                
+          cp -r src/realesrgan_ncnn_py dist
+
       - name: upload
         uses: actions/upload-artifact@v3
         with:
-           name: realesrgan-ncnn-linux-x64-clang-python${{ matrix.python-version }}
-           path: dist
+          name: realesrgan-ncnn-linux-x64-clang-python${{ matrix.python-version }}
+          path: dist

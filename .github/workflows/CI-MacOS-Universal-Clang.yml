@@ -20,98 +20,95 @@ jobs:
   macos:
     strategy:
       matrix:
-        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
-    
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: 'recursive'
-        
-    - uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '14.2.0'
-        
-    - uses: actions/setup-python@v4 
-      with:
-        python-version: ${{ matrix.python-version }}
-        architecture: x64
-          
-    - name: Check Python version
-      run: |
-        python --version
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
 
-    - name: cache-vulkansdk
-      id: cache-vulkansdk
-      uses: actions/cache@v3.2.4
-      with:
-        path: "src/vulkansdk-macos-1.2.162.1"
-        key: vulkansdk-macos-1.2.162.1
-        
-    - name: vulkansdk
-      if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
-      run: |
-        cd src
-        wget https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/vulkansdk-macos-1.2.162.1.dmg -O vulkansdk-macos-1.2.162.1.dmg
-        hdiutil attach vulkansdk-macos-1.2.162.1.dmg
-        cp -r /Volumes/vulkansdk-macos-1.2.162.1 .
-        rm -rf vulkansdk-macos-1.2.162.1/Applications
-        find vulkansdk-macos-1.2.162.1 -type f | grep -v -E 'vulkan|glslang|MoltenVK' | xargs rm
-        hdiutil detach /Volumes/vulkansdk-macos-1.2.162.1
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "14.2.0"
 
-    - name: build-arm64
-      run: |
-        cd src
-        export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.162.1/macOS
-        mkdir build-arm64 && cd build-arm64
-        cmake -DUSE_STATIC_MOLTENVK=ON -DCMAKE_OSX_ARCHITECTURES="arm64" \
-            -DCMAKE_CROSSCOMPILING=ON -DCMAKE_SYSTEM_PROCESSOR=arm64 \
-            -DVulkan_INCLUDE_DIR=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/include \
-            -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a \
-            ..
-        cmake --build . -j 4
+      - uses: pdm-project/setup-pdm@v3
+        name: Setup PDM
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+          version: 2.11.1
+          prerelease: false
+          enable-pep582: false
+          allow-python-prereleases: false
+          update-python: true
 
-     
-    - name: build-x86_64
-      run: |
-        cd src
-        export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.162.1/macOS
-        mkdir build-x86_64 && cd build-x86_64
-        cmake -DUSE_STATIC_MOLTENVK=ON -DCMAKE_OSX_ARCHITECTURES="x86_64" \
-            -DCMAKE_CROSSCOMPILING=ON -DCMAKE_SYSTEM_PROCESSOR=x86_64 \
-            -DVulkan_INCLUDE_DIR=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/include \
-            -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a \
-            ..
-        cmake --build . -j 4
-      
-   
-    - name: merge-fat-library-py36m
-      if: matrix.python-version == '3.6'
-      run: mkdir -p dist && lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-36m-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-36m-darwin.so -o dist/realesrgan_ncnn_vulkan_wrapper.cpython-36m-darwin.so
-    - name: merge-fat-library-py37m     
-      if: matrix.python-version == '3.7'
-      run: mkdir -p dist && lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-37m-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-37m-darwin.so -o dist/realesrgan_ncnn_vulkan_wrapper.cpython-37m-darwin.so
-    - name: merge-fat-library-py38         
-      if: matrix.python-version == '3.8'
-      run: mkdir -p dist && lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so -o dist/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so
-    - name: merge-fat-library-py39 
-      if: matrix.python-version == '3.9'
-      run: mkdir -p dist && lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so -o dist/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so
-    - name: merge-fat-library-py310
-      if: matrix.python-version == '3.10'
-      run: mkdir -p dist && lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so -o dist/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so
-    - name: merge-fat-library-py311   
-      if: matrix.python-version == '3.11'
-      run: mkdir -p dist && lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so -o dist/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so
-   
-    - name: dist
-      run: |
-        cp src/realesrgan_ncnn_vulkan.py dist
-        cp -r models dist
+      - name: Check Python version
+        run: |
+          python --version
 
-    - name: upload
-      uses: actions/upload-artifact@v3
-      with:
-        name: realesrgan-ncnn-macos-python${{ matrix.python-version }}
-        path: dist
+      - name: cache-vulkansdk
+        id: cache-vulkansdk
+        uses: actions/cache@v3.2.4
+        with:
+          path: "src/vulkansdk-macos-1.2.162.1"
+          key: vulkansdk-macos-1.2.162.1
 
+      - name: vulkansdk
+        if: steps.cache-vulkansdk.outputs.cache-hit != 'true'
+        run: |
+          cd src
+          wget https://github.com/Tohrusky/realcugan-ncnn-vulkan-build-macOS/releases/download/v0.0.1/vulkansdk-macos-1.2.162.1.dmg -O vulkansdk-macos-1.2.162.1.dmg
+          hdiutil attach vulkansdk-macos-1.2.162.1.dmg
+          cp -r /Volumes/vulkansdk-macos-1.2.162.1 .
+          rm -rf vulkansdk-macos-1.2.162.1/Applications
+          find vulkansdk-macos-1.2.162.1 -type f | grep -v -E 'vulkan|glslang|MoltenVK' | xargs rm
+          hdiutil detach /Volumes/vulkansdk-macos-1.2.162.1
+
+      - name: build-arm64
+        run: |
+          cd src
+          export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.162.1/macOS
+          mkdir build-arm64 && cd build-arm64
+          cmake -DUSE_STATIC_MOLTENVK=ON -DCMAKE_OSX_ARCHITECTURES="arm64" \
+              -DCMAKE_CROSSCOMPILING=ON -DCMAKE_SYSTEM_PROCESSOR=arm64 \
+              -DVulkan_INCLUDE_DIR=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/include \
+              -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a \
+              ..
+          cmake --build . -j 4
+
+      - name: build-x86_64
+        run: |
+          cd src
+          export VULKAN_SDK=`pwd`/vulkansdk-macos-1.2.162.1/macOS
+          mkdir build-x86_64 && cd build-x86_64
+          cmake -DUSE_STATIC_MOLTENVK=ON -DCMAKE_OSX_ARCHITECTURES="x86_64" \
+              -DCMAKE_CROSSCOMPILING=ON -DCMAKE_SYSTEM_PROCESSOR=x86_64 \
+              -DVulkan_INCLUDE_DIR=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/include \
+              -DVulkan_LIBRARY=`pwd`/../vulkansdk-macos-1.2.162.1/MoltenVK/MoltenVK.xcframework/macos-arm64_x86_64/libMoltenVK.a \
+              ..
+          cmake --build . -j 4
+
+      - name: merge-fat-library-py38
+        if: matrix.python-version == '3.8'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so -o src/realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-38-darwin.so
+      - name: merge-fat-library-py39
+        if: matrix.python-version == '3.9'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so -o src/realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-39-darwin.so
+      - name: merge-fat-library-py310
+        if: matrix.python-version == '3.10'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so -o src/realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-310-darwin.so
+      - name: merge-fat-library-py311
+        if: matrix.python-version == '3.11'
+        run: lipo -create src/build-arm64/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so src/build-x86_64/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so -o src/realesrgan_ncnn_py/realesrgan_ncnn_vulkan_wrapper.cpython-311-darwin.so
+
+      - name: dist
+        run: |
+          mkdir dist
+          cp -r src/realesrgan_ncnn_py dist
+
+      - name: upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: realesrgan-ncnn-macos-python${{ matrix.python-version }}
+          path: dist
