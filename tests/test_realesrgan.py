@@ -1,8 +1,10 @@
+import os
 import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 from realesrgan_ncnn_py import Realesrgan
 from skimage.metrics import structural_similarity
 
@@ -28,12 +30,25 @@ def calculate_image_similarity(image1: np.ndarray, image2: np.ndarray) -> bool:
 
 _gpuid = 0
 
+# gpuid = -1 when in GitHub Actions
+if os.environ.get("GITHUB_ACTIONS") == "true":
+    _gpuid = -1
+
 TEST_IMG = cv2.imread(str(filePATH.parent / "test.png"))
 
 
 class Test_Realesrgan:
-    def test_cv2(self) -> None:
-        _realesrgan = Realesrgan(gpuid=_gpuid, model=0)
-        outimg = _realesrgan.process_cv2(TEST_IMG)
+    def test_animevideov3(self) -> None:
+        for _model in [0, 1, 2]:
+            _realesrgan = Realesrgan(gpuid=_gpuid, model=_model)
+            outimg = _realesrgan.process_cv2(TEST_IMG)
 
-        assert calculate_image_similarity(TEST_IMG, outimg)
+            assert calculate_image_similarity(TEST_IMG, outimg)
+
+    @pytest.mark.skipif(_gpuid == -1, reason="skip when in GitHub Actions")
+    def test_x4plus(self) -> None:
+        for _model in [3, 4]:
+            _realesrgan = Realesrgan(gpuid=_gpuid, model=_model)
+            outimg = _realesrgan.process_cv2(TEST_IMG)
+
+            assert calculate_image_similarity(TEST_IMG, outimg)

@@ -13,6 +13,9 @@ on:
       - LICENSE
   workflow_dispatch:
 
+env:
+  GITHUB_ACTIONS: true
+
 jobs:
   Linux-x64-GCC:
     strategy:
@@ -63,9 +66,14 @@ jobs:
           cmake -DOpenMP_CXX_FLAGS="-fexceptions -frtti" ..
           cmake --build . -j 4
 
-      - name: dist
+      - name: Test
         run: |
           cp src/build/realesrgan_ncnn_vulkan_wrapper.*.so src/realesrgan_ncnn_py
+          pdm install
+          pdm run test
+
+      - name: dist
+        run: |
           mkdir dist
           cp -r src/realesrgan_ncnn_py dist
 
