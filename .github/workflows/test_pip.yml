@@ -1,0 +1,41 @@
+name: test_pip
+
+on:
+  schedule:
+    - cron: "0 19 * 1 *"
+  workflow_dispatch:
+
+env:
+  GITHUB_ACTIONS: true
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        os-version: ["macos-latest", "windows-latest", "ubuntu-20.04"]
+
+    runs-on: ${{ matrix.os-version }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: vulkan dll
+        if: matrix.os-version == 'windows-latest'
+        run: echo F | xcopy .\tests\vulkan-1.dll C:\Windows\System32
+
+      - name: Check Python version
+        run: |
+          python --version
+
+      - name: Test
+        run: |
+          pip install --upgrade pip chardet
+          pip install pathlib opencv-python scikit-image Pillow pytest pytest-cov realcugan-ncnn-py
+          python -m pytest tests

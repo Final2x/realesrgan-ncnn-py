@@ -13,6 +13,9 @@ on:
       - LICENSE
   workflow_dispatch:
 
+env:
+  GITHUB_ACTIONS: true
+
 jobs:
   windows:
     strategy:
@@ -63,11 +66,16 @@ jobs:
           cmake -A x64 -DCMAKE_CXX_FLAGS="-frtti -fexceptions" ..
           cmake --build . --config Release -j 4
 
+      - name: Test
+        run: |
+          echo F | xcopy .\src\build\Release\realesrgan_ncnn_vulkan_wrapper.*.pyd .\src\realesrgan_ncnn_py
+          echo F | xcopy .\tests\vulkan-1.dll .\src\realesrgan_ncnn_py
+          pdm install
+          pdm run test
+
       - name: dist
         run: |
           mkdir dist
-          echo F | xcopy .\src\build\Release\realesrgan_ncnn_vulkan_wrapper.*.pyd .\src\realesrgan_ncnn_py
-          echo F | xcopy .\tests\vulkan-1.dll .\src\realesrgan_ncnn_py
           echo D | xcopy .\src\realesrgan_ncnn_py dist
 
       - name: upload
