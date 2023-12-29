@@ -582,8 +582,6 @@ int RealESRGAN::process(const ncnn::Mat &inimage, ncnn::Mat &outimage) const {
 }
 
 int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const {
-    std::cout << "process_cpu" << std::endl;
-
     const unsigned char *pixeldata = (const unsigned char *) inimage.data;
     const int w = inimage.w;
     const int h = inimage.h;
@@ -594,37 +592,21 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
 
     ncnn::Option opt = net.opt;
 
-    // each tile 400x400
+    // each tile 100x100
     const int xtiles = (w + TILE_SIZE_X - 1) / TILE_SIZE_X;
     const int ytiles = (h + TILE_SIZE_Y - 1) / TILE_SIZE_Y;
 
     for (int yi = 0; yi < ytiles; yi++) {
         const int tile_h_nopad = std::min((yi + 1) * TILE_SIZE_Y, h) - yi * TILE_SIZE_Y;
 
-        int prepadding_bottom = prepadding;
-        if (scale == 1 || scale == 3) {
-            prepadding_bottom += (tile_h_nopad + 3) / 4 * 4 - tile_h_nopad;
-        }
-        if (scale == 2 || scale == 4) {
-            prepadding_bottom += (tile_h_nopad + 1) / 2 * 2 - tile_h_nopad;
-        }
-
         int in_tile_y0 = std::max(yi * TILE_SIZE_Y - prepadding, 0);
-        int in_tile_y1 = std::min((yi + 1) * TILE_SIZE_Y + prepadding_bottom, h);
+        int in_tile_y1 = std::min((yi + 1) * TILE_SIZE_Y + prepadding, h);
 
         for (int xi = 0; xi < xtiles; xi++) {
             const int tile_w_nopad = std::min((xi + 1) * TILE_SIZE_X, w) - xi * TILE_SIZE_X;
 
-            int prepadding_right = prepadding;
-            if (scale == 1 || scale == 3) {
-                prepadding_right += (tile_w_nopad + 3) / 4 * 4 - tile_w_nopad;
-            }
-            if (scale == 2 || scale == 4) {
-                prepadding_right += (tile_w_nopad + 1) / 2 * 2 - tile_w_nopad;
-            }
-
             int in_tile_x0 = std::max(xi * TILE_SIZE_X - prepadding, 0);
-            int in_tile_x1 = std::min((xi + 1) * TILE_SIZE_X + prepadding_right, w);
+            int in_tile_x1 = std::min((xi + 1) * TILE_SIZE_X + prepadding, w);
 
             // crop tile
             ncnn::Mat in;
@@ -666,11 +648,9 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
                 // border padding
                 {
                     int pad_top = std::max(prepadding - yi * TILE_SIZE_Y, 0);
-                    int pad_bottom = std::max(
-                            std::min((yi + 1) * TILE_SIZE_Y + prepadding_bottom - h, prepadding_bottom), 0);
+                    int pad_bottom = std::max(std::min((yi + 1) * TILE_SIZE_Y + prepadding - h, prepadding), 0);
                     int pad_left = std::max(prepadding - xi * TILE_SIZE_X, 0);
-                    int pad_right = std::max(std::min((xi + 1) * TILE_SIZE_X + prepadding_right - w, prepadding_right),
-                                             0);
+                    int pad_right = std::max(std::min((xi + 1) * TILE_SIZE_X + prepadding - w, prepadding), 0);
 
                     ncnn::Mat in_tile_padded;
                     ncnn::copy_make_border(in_tile[0], in_tile_padded, pad_top, pad_bottom, pad_left, pad_right, 2, 0.f,
@@ -724,7 +704,7 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
                     }
                 }
 
-                // realcugan
+                // realsr
                 ncnn::Mat out_tile[8];
                 for (int ti = 0; ti < 8; ti++) {
                     ncnn::Extractor ex = net.create_extractor();
@@ -753,67 +733,40 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
                 // postproc and merge alpha
                 {
                     out.create(tile_w_nopad * scale, tile_h_nopad * scale, channels);
-                    if (scale == 4) {
-                        for (int q = 0; q < 3; q++) {
-                            const ncnn::Mat out_tile_0 = out_tile[0].channel(q);
-                            const ncnn::Mat out_tile_1 = out_tile[1].channel(q);
-                            const ncnn::Mat out_tile_2 = out_tile[2].channel(q);
-                            const ncnn::Mat out_tile_3 = out_tile[3].channel(q);
-                            const ncnn::Mat out_tile_4 = out_tile[4].channel(q);
-                            const ncnn::Mat out_tile_5 = out_tile[5].channel(q);
-                            const ncnn::Mat out_tile_6 = out_tile[6].channel(q);
-                            const ncnn::Mat out_tile_7 = out_tile[7].channel(q);
-                            float *outptr = out.channel(q);
+                    for (int q = 0; q < 3; q++) {
+                        const ncnn::Mat out_tile_0 = out_tile[0].channel(q);
+                        const ncnn::Mat out_tile_1 = out_tile[1].channel(q);
+                        const ncnn::Mat out_tile_2 = out_tile[2].channel(q);
+                        const ncnn::Mat out_tile_3 = out_tile[3].channel(q);
+                        const ncnn::Mat out_tile_4 = out_tile[4].channel(q);
+                        const ncnn::Mat out_tile_5 = out_tile[5].channel(q);
+                        const ncnn::Mat out_tile_6 = out_tile[6].channel(q);
+                        const ncnn::Mat out_tile_7 = out_tile[7].channel(q);
+                        float *outptr = out.channel(q);
 
-                            for (int i = 0; i < out.h; i++) {
-                                const float *inptr = in_tile[0].channel(q).row(prepadding + i / 4) + prepadding;
-                                const float *ptr0 = out_tile_0.row(i);
-                                const float *ptr1 = out_tile_1.row(out_tile[0].h - 1 - i);
-                                const float *ptr2 = out_tile_2.row(i) + out_tile[0].w - 1;
-                                const float *ptr3 = out_tile_3.row(out_tile[0].h - 1 - i) + out_tile[0].w - 1;
+                        for (int i = 0; i < out.h; i++) {
+                            const float *ptr0 = out_tile_0.row(i + prepadding * scale) + prepadding * scale;
+                            const float *ptr1 =
+                                    out_tile_1.row(out_tile[0].h - 1 - i - prepadding * scale) + prepadding * scale;
+                            const float *ptr2 =
+                                    out_tile_2.row(i + prepadding * scale) + out_tile[0].w - 1 - prepadding * scale;
+                            const float *ptr3 =
+                                    out_tile_3.row(out_tile[0].h - 1 - i - prepadding * scale) + out_tile[0].w - 1 -
+                                    prepadding * scale;
 
-                                for (int j = 0; j < out.w; j++) {
-                                    const float *ptr4 = out_tile_4.row(j) + i;
-                                    const float *ptr5 = out_tile_5.row(out_tile[0].w - 1 - j) + i;
-                                    const float *ptr6 = out_tile_6.row(j) + out_tile[0].h - 1 - i;
-                                    const float *ptr7 = out_tile_7.row(out_tile[0].w - 1 - j) + out_tile[0].h - 1 - i;
+                            for (int j = 0; j < out.w; j++) {
+                                const float *ptr4 = out_tile_4.row(j + prepadding * scale) + i + prepadding * scale;
+                                const float *ptr5 = out_tile_5.row(out_tile[0].w - 1 - j - prepadding * scale) + i +
+                                                    prepadding * scale;
+                                const float *ptr6 = out_tile_6.row(j + prepadding * scale) + out_tile[0].h - 1 - i -
+                                                    prepadding * scale;
+                                const float *ptr7 =
+                                        out_tile_7.row(out_tile[0].w - 1 - j - prepadding * scale) + out_tile[0].h - 1 -
+                                        i - prepadding * scale;
 
-                                    float v =
-                                            (*ptr0++ + *ptr1++ + *ptr2-- + *ptr3-- + *ptr4 + *ptr5 + *ptr6 + *ptr7) / 8;
+                                float v = (*ptr0++ + *ptr1++ + *ptr2-- + *ptr3-- + *ptr4 + *ptr5 + *ptr6 + *ptr7) / 8;
 
-                                    *outptr++ = v * 255.f + 0.5f + inptr[j / 4] * 255.f;
-                                }
-                            }
-                        }
-                    } else {
-                        for (int q = 0; q < 3; q++) {
-                            const ncnn::Mat out_tile_0 = out_tile[0].channel(q);
-                            const ncnn::Mat out_tile_1 = out_tile[1].channel(q);
-                            const ncnn::Mat out_tile_2 = out_tile[2].channel(q);
-                            const ncnn::Mat out_tile_3 = out_tile[3].channel(q);
-                            const ncnn::Mat out_tile_4 = out_tile[4].channel(q);
-                            const ncnn::Mat out_tile_5 = out_tile[5].channel(q);
-                            const ncnn::Mat out_tile_6 = out_tile[6].channel(q);
-                            const ncnn::Mat out_tile_7 = out_tile[7].channel(q);
-                            float *outptr = out.channel(q);
-
-                            for (int i = 0; i < out.h; i++) {
-                                const float *ptr0 = out_tile_0.row(i);
-                                const float *ptr1 = out_tile_1.row(out_tile[0].h - 1 - i);
-                                const float *ptr2 = out_tile_2.row(i) + out_tile[0].w - 1;
-                                const float *ptr3 = out_tile_3.row(out_tile[0].h - 1 - i) + out_tile[0].w - 1;
-
-                                for (int j = 0; j < out.w; j++) {
-                                    const float *ptr4 = out_tile_4.row(j) + i;
-                                    const float *ptr5 = out_tile_5.row(out_tile[0].w - 1 - j) + i;
-                                    const float *ptr6 = out_tile_6.row(j) + out_tile[0].h - 1 - i;
-                                    const float *ptr7 = out_tile_7.row(out_tile[0].w - 1 - j) + out_tile[0].h - 1 - i;
-
-                                    float v =
-                                            (*ptr0++ + *ptr1++ + *ptr2-- + *ptr3-- + *ptr4 + *ptr5 + *ptr6 + *ptr7) / 8;
-
-                                    *outptr++ = v * 255.f + 0.5f;
-                                }
+                                *outptr++ = v * 255.f + 0.5f;
                             }
                         }
                     }
@@ -845,11 +798,9 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
                 // border padding
                 {
                     int pad_top = std::max(prepadding - yi * TILE_SIZE_Y, 0);
-                    int pad_bottom = std::max(
-                            std::min((yi + 1) * TILE_SIZE_Y + prepadding_bottom - h, prepadding_bottom), 0);
+                    int pad_bottom = std::max(std::min((yi + 1) * TILE_SIZE_Y + prepadding - h, prepadding), 0);
                     int pad_left = std::max(prepadding - xi * TILE_SIZE_X, 0);
-                    int pad_right = std::max(std::min((xi + 1) * TILE_SIZE_X + prepadding_right - w, prepadding_right),
-                                             0);
+                    int pad_right = std::max(std::min((xi + 1) * TILE_SIZE_X + prepadding - w, prepadding), 0);
 
                     ncnn::Mat in_tile_padded;
                     ncnn::copy_make_border(in_tile, in_tile_padded, pad_top, pad_bottom, pad_left, pad_right, 2, 0.f,
@@ -857,7 +808,7 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
                     in_tile = in_tile_padded;
                 }
 
-                // realcugan
+                // realsr
                 ncnn::Mat out_tile;
                 {
                     ncnn::Extractor ex = net.create_extractor();
@@ -886,29 +837,14 @@ int RealESRGAN::process_cpu(const ncnn::Mat &inimage, ncnn::Mat &outimage) const
                 // postproc and merge alpha
                 {
                     out.create(tile_w_nopad * scale, tile_h_nopad * scale, channels);
-                    if (scale == 4) {
-                        for (int q = 0; q < 3; q++) {
-                            float *outptr = out.channel(q);
+                    for (int q = 0; q < 3; q++) {
+                        float *outptr = out.channel(q);
 
-                            for (int i = 0; i < out.h; i++) {
-                                const float *inptr = in_tile.channel(q).row(prepadding + i / 4) + prepadding;
-                                const float *ptr = out_tile.channel(q).row(i);
+                        for (int i = 0; i < out.h; i++) {
+                            const float *ptr = out_tile.channel(q).row(i + prepadding * scale) + prepadding * scale;
 
-                                for (int j = 0; j < out.w; j++) {
-                                    *outptr++ = *ptr++ * 255.f + 0.5f + inptr[j / 4] * 255.f;
-                                }
-                            }
-                        }
-                    } else {
-                        for (int q = 0; q < 3; q++) {
-                            float *outptr = out.channel(q);
-
-                            for (int i = 0; i < out.h; i++) {
-                                const float *ptr = out_tile.channel(q).row(i);
-
-                                for (int j = 0; j < out.w; j++) {
-                                    *outptr++ = *ptr++ * 255.f + 0.5f;
-                                }
+                            for (int j = 0; j < out.w; j++) {
+                                *outptr++ = *ptr++ * 255.f + 0.5f;
                             }
                         }
                     }

@@ -38,7 +38,7 @@ repos:
     rev: v1.7.1
     hooks:
       - id: mypy
-        args: [src, tests]
+        args: [src/realesrgan_ncnn_py, tests]
         pass_filenames: false
         additional_dependencies:
           - types-requests

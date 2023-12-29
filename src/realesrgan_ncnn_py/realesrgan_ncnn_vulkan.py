@@ -41,14 +41,14 @@ class Realesrgan:
         """
         RealESRGAN class for Super Resolution
 
-        :param gpuid: gpu device to use, cpu is not supported yet
+        :param gpuid: gpu device to use, -1 for cpu
         :param tta_mode: enable test time argumentation
         :param tilesize: tile size, 0 for auto, must >= 32
         :param model: realesrgan model, 0 for default, -1 for custom load
         """
 
         # check arguments' validity
-        assert gpuid >= 0, "gpuid must >= 0"
+        assert gpuid >= -1, "gpuid must >= -1"
         assert tilesize == 0 or tilesize >= 32, "tilesize must >= 32 or be 0"
         assert model >= -1, "model must > 0 or -1"
 
