@@ -3,6 +3,7 @@
 Python Binding for realesrgan-ncnn-py with PyBind11
 
 [![PyPI version](https://badge.fury.io/py/realesrgan-ncnn-py.svg?123456)](https://badge.fury.io/py/realesrgan-ncnn-py?123456)
+[![test_pip](https://github.com/Final2x/realesrgan-ncnn-py/actions/workflows/test_pip.yml/badge.svg)](https://github.com/Final2x/realesrgan-ncnn-py/actions/workflows/test_pip.yml)
 [![Release](https://github.com/Tohrusky/realesrgan-ncnn-py/actions/workflows/Release.yml/badge.svg)](https://github.com/Tohrusky/realesrgan-ncnn-py/actions/workflows/Release.yml)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/realesrgan-ncnn-py)
 
