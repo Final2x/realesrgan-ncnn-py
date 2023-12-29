@@ -37,5 +37,5 @@ jobs:
       - name: Test
         run: |
           pip install --upgrade pip chardet
-          pip install pathlib opencv-python scikit-image Pillow pytest pytest-cov realcugan-ncnn-py
+          pip install pathlib opencv-python scikit-image Pillow pytest pytest-cov realesrgan-ncnn-py
           python -m pytest tests
